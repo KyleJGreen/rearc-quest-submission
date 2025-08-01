@@ -1,11 +1,12 @@
 # Use latest Alpine Node image and set working dir
 FROM node:24-alpine
-WORKDIR /app
+WORKDIR /usr/app
 
 # Copy all application files and install dependencies
-COPY . .
-RUN npm ci --omit=dev
+COPY app/ .
+RUN ls
+RUN npm install
 
 # Expose the port the Quest app listens on and run the application
 EXPOSE 3000
-CMD ["node", "server.js"]
+CMD ["npm", "start"]
