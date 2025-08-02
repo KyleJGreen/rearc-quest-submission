@@ -4,7 +4,6 @@ WORKDIR /usr/app
 
 # Copy all application files and install dependencies
 COPY app/ .
-RUN ls
 RUN npm install
 
 # set the secret word for the quest
