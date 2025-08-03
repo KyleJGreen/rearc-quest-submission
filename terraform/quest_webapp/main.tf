@@ -107,7 +107,7 @@ resource "google_compute_global_address" "quest_webapp_ip" {
 # This http proxy is used to redirect HTTP traffic to HTTPS
 resource "google_compute_target_http_proxy" "quest_webapp_redirect_proxy" {
   name    = "quest-webapp-http-proxy"
-  url_map = google_compute_url_map.quest_webapp_url_map.id
+  url_map = google_compute_url_map.http_to_https_redirect.id
 }
 
 resource "google_compute_global_forwarding_rule" "http_forwarding_rule" {
