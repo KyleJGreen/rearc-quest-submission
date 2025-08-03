@@ -47,4 +47,8 @@ exec('bin/006 ' + JSON.stringify(req.headers), (err, stdout, stderr) => {
 });
 });
 
+app.get('/health', function (_req, res) {
+  res.sendStatus(200);
+});
+
 app.listen(port, () => console.log(`Rearc quest listening on port ${port}!`))

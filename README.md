@@ -1,78 +1,90 @@
-# A quest in the clouds
+## Rearc Quest Submission – Kyle Green
 
-### Q. What is this quest?
+### Proof of Completion
+Proof of Completion can be found by either opening `proof_of_completion.png` in the root of this repository or by visiting `34.160.189.8` in your browser.
 
-It is a fun way to assess your cloud skills. It is also a good representative sample of the work we do at Rearc. We've built the Quest webapp with node.js and golang. Your job, should you wish to accept it, is to complete a series of tasks to make it run in the cloud. 
+Because this solution uses a self-signed cert, you’ll need to click through your browser’s “unsafe/insecure” warning.
 
-### Q. So what skills should I have?
-- Public cloud: AWS, GCP, Azure.
-  - More than one cloud is a "good to have" but one is a "must have".
-- General cloud concepts, especially networking.
-- Containerization, such as: Docker, containerd, kubernetes
-- IaC (Infrastructure as code). At least some Terraform preferred.
-- Linux (or other POSIX OS).
-- VCS (Version Control System). Git is highly preferred. 
-- TLS is a plus.
+---
 
-### Q. What do I have to do?
-You may do all or some of the following tasks. Please read over the complete list before starting.
+### Architectural Decision Record (ADR)
 
-1. If you know how to use git, start a git repository (local-only is acceptable) using the webapp files included in this repo as a starting point. Commit all of your work to it.
-2. Use Infrastructure as Code (IaC) to the deploy the code as specified below.
-   - Terraform is ideal, but use whatever you know, e.g. CloudFormation, CDK, Deployment Manager, etc.
-3. Deploy the app in a container in any public cloud using the services you think best solve this problem.
-   - Use `node` as the base image. Version `node:10` or later should work.
-4. Navigate to the index page to obtain the SECRET_WORD.
-5. Inject an environment variable (`SECRET_WORD`) in the Docker container using the value on the index page.
-6. Deploy a load balancer in front of the app.
-7. Add TLS (https). You may use locally-generated certs.
+#### UMIG with Load Balancer
 
-### Q. How do I know I have solved these stages?
-Each stage can be tested as follows (where `<ip_or_host>` is the location where the app is deployed):
+Initially, I started with a Cloud Run service, but its implicit load-balanced endpoint didn’t surface the traditional headers needed for this challenge. I therefore switched to a GCE VM in an unmanaged instance group (UMIG) behind a global HTTP(S) Load Balancer for better transparency and easier troubleshooting.  
+> *Note:* I’ve retained the Cloud Run Terraform module in this repo for reference; the active solution lives in `terraform/quest_webapp/` (the UMIG module).
 
-1. Public cloud & index page (contains the secret word) - `http(s)://<ip_or_host>[:port]/`
-2. Docker check - `http(s)://<ip_or_host>[:port]/docker`
-3. Secret Word check - `http(s)://<ip_or_host>[:port]/secret_word`
-4. Load Balancer check  - `http(s)://<ip_or_host>[:port]/loadbalanced`
-5. TLS check - `http(s)://<ip_or_host>[:port]/tls`
+#### Modification to `src/`
 
-### Q. Do I have to do all these?
-You may do whichever, and however many, of the tasks above as you'd like. We suspect that once you start, you won't be able to stop. It's addictive. Extra credit if you are able to submit working entries for more than one cloud provider.
+I moved the application code into its own directory to isolate it from the Terraform configuration. I also modified `src/000.js` to add a `/health` endpoint so the Load Balancer’s health check can pass.
 
-### Q. What do I have to submit?
-1. Your work assets, as one or both of the following:
-   - A link to a hosted git repository.
-   - A compressed file containing your project directory (zip, tgz, etc). Include the `.git` sub-directory if you used git.
-2. Proof of completion, as one or both of the following:
-   - Link(s) to hosted public cloud deployment(s).
-   - One or more screenshots showing, at least, the index page of the final deployment in one or more public cloud(s) you have chosen.
-3. An answer to the prompt: "Given more time, I would improve..."
-   - Discuss any shortcomings/immaturities in your solution and the reasons behind them (lack of time is a perfectly fine reason!)
-   - **This may carry as much weight as the code itself**
+---
 
-Your work assets should include:
+### Steps to Reproduce
 
-- IaC files, if you completed that task.
-- One or more Dockerfiles, if you completed that task.
-- A sensible README or other file(s) that contain instructions, notes, or other written documentation to help us review and assess your submission.
-  - **Note** - the more this looks like a finished solution to deliver to a customer, the better.
+#### 1. Enable Required APIs  
+Ensure the following APIs are enabled:
+```
+compute.googleapis.com
+artifactregistry.googleapis.com
+containeranalysis.googleapis.com
+run.googleapis.com
+logging.googleapis.com
+monitoring.googleapis.com
+serviceusage.googleapis.com
+```
 
-### Q. How long do I need to host my submission on public cloud(s)?
-You don't have to at all if you don't want to. You can run it in public cloud(s), grab a screenshot, then tear it all down to avoid costs.
+#### 2. Set Up Artifact Registry  
+```bash
+cd terraform/artifact_registry
+terraform init
+terraform plan
+terraform apply
+```
 
-If you _want_ to host it longer for us to view it, we recommend taking a screenshot anyway and sending that along with the link. Then you can tear down the quest whenever you want and we'll still have the screenshot. We recommend waiting no longer than one week after sending us the link before tearing it down.
+#### 3. Build & Publish the Docker Image  
+> *Run this on a machine with Docker (e.g., Google Cloud Shell).*  
+```bash
+cd ../..  # from terraform/artifact_registry
+sh upload_artifact.sh
+```
 
-### Q. What if I successfully complete all the challenges?
-We have many more for you to solve as a member of the Rearc team!
+#### 4. Deploy the Webapp as a UMIG  
+```bash
+cd terraform/quest_webapp  # from repo root
+terraform init
+terraform plan
+terraform apply
+```
+> **Save** the `lb_ip_address` output for the next step.
 
-### Q. What if I find a bug?
-Awesome! Tell us you found a bug along with your submission and we'll talk more!
+#### 5. Deploy the HTTPS Load Balancer  
+1. In `terraform/http_lb/generate_cert.sh`, set `LB_IP` to the `lb_ip_address` from the previous step.  
+2. Generate the self-signed certificate:
+   ```bash
+   cd ../http_lb
+   sh generate_cert.sh
+   ```
+3. Deploy:
+   ```bash
+   terraform init
+   terraform plan
+   terraform apply
+   ```
 
-### Q. What if I fail?
-There is no fail. Complete whatever you can and then submit your work. Doing _everything_ in the quest is not a guarantee that you will "pass" the quest, just like not doing something is not a guarantee you will "fail" the quest.
+#### 6. Verify  
+The `quest_webapp_ip_address` output of the `https_lb` module shows the site IP. (e.g. `34.160.189.8` is the current address of the web-app.)  
+Because this uses a self-signed cert, you’ll need to click through your browser’s “unsafe/insecure” warning.
 
-### Q. Can I share this quest with others?
-No. After interviewing, please change any solutions shared publicly to be private.
+---
 
-### Q. Do I have to spend money out of my own pocket to complete the quest?
-No. There are many possible solutions to this quest that would be zero cost to you when using [AWS](https://aws.amazon.com/free), [GCP](https://cloud.google.com/free), or [Azure](https://azure.microsoft.com/en-us/pricing/free-services).
+### Future Improvements (Given more time, I would improve...)
+
+If this proof-of-concept became production, I would:
+
+1. Replace the self-signed cert with a managed certificate from Certificate Manager.  
+2. Migrate the UMIG to a Managed Instance Group (MIG) or deploy to GKE for built-in autoscaling. Alternatively, add a Load Balancer in front of Cloud Run via a custom domain.  
+3. Automate the entire workflow in a CI/CD pipeline using a service account.
+4. Extract the Terraform into reusable modules with environment-specific variables and consume them in a gated CI/CD pipeline. Promote shared patterns into their own repos so multiple services can use them (e.g., web apps). For example, Artifact Registry setup should live separately from the Quest web app repo since it would host multiple repositories.
+5. Consolidate `quest_webapp` and `https_lb` modules so they run in one `terraform apply`—avoiding the two-step cert generation workaround.
+6. Add a DNS record to point a custom domain to the Load Balancer's IP.
