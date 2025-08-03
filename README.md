@@ -88,3 +88,4 @@ If this proof-of-concept became production, I would:
 4. Extract the Terraform into reusable modules with environment-specific variables and consume them in a gated CI/CD pipeline. Promote shared patterns into their own repos so multiple services can use them (e.g., web apps). For example, Artifact Registry setup should live separately from the Quest web app repo since it would host multiple repositories.
 5. Consolidate `quest_webapp` and `https_lb` modules so they run in one `terraform apply`—avoiding the two-step cert generation workaround.
 6. Add a DNS record to point a custom domain to the Load Balancer's IP.
+7. Add semantic versioning to Docker tagging
